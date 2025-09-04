@@ -1,0 +1,105 @@
+import requests
+import json
+
+def call_openrouter(image_data_url: str, model: str, api_key: str, timeout_s: float = 2.0) -> dict | None:
+    system_prompt = 'You are a quiz parser. Input is a cropped screenshot of a quiz. Return ONLY strict JSON. If multiple questions are visible, answer the TOPMOST one.'
+    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and 0-based "answer_indices" as a list (even for single answer). If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": [
+            {"type": "text", "text": user_text},
+            {"type": "image_url", "image_url": {"url": image_data_url}}
+        ]}
+    ]
+    
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'HTTP-Referer': 'https://quizpeek.app',
+        'X-Title': 'QuizPeek'
+    }
+    
+    data = {
+        'model': model,
+        'messages': messages,
+        'temperature': 0.0,
+        'max_tokens': 300
+    }
+    
+    try:
+        response = requests.post('https://openrouter.ai/api/v1/chat/completions', headers=headers, json=data, timeout=timeout_s)
+        print(f"API response status: {response.status_code}")
+        if response.status_code in [401, 403]:
+            return {'error': 'auth'}  # Authentication error
+        if response.status_code >= 500:
+            return {'error': 'server'}  # Server error
+        response.raise_for_status()
+        result = response.json()
+        print(f"Full API result: {result}")
+        if 'choices' not in result or not result['choices']:
+            print("No choices in result")
+            return {'error': 'parse'}
+        content = result['choices'][0]['message']['content']
+        print(f"API response content: '{content}'")
+        if not content.strip():
+            print("Content is empty")
+            return {'error': 'parse'}
+        # Strip markdown code blocks
+        if content.strip().startswith('```json'):
+            content = content.strip()[7:]  # Remove ```json
+            if content.endswith('```'):
+                content = content[:-3]  # Remove ```
+            content = content.strip()
+        elif content.strip().startswith('```'):
+            content = content.strip()[3:]  # Remove ```
+            if content.endswith('```'):
+                content = content[:-3]
+            content = content.strip()
+        print(f"Cleaned content: '{content}'")
+        try:
+            parsed = json.loads(content)
+            return parsed
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            return {'error': 'parse'}
+    except requests.exceptions.Timeout:
+        print("API timeout")
+        return {'error': 'timeout'}
+    except requests.exceptions.RequestException as e:
+        print(f"API network error: {e}")
+        return {'error': 'network'}
+
+def validate_result(obj: dict) -> tuple[bool, str]:
+    if not isinstance(obj, dict):
+        return False, "Object is not a dict"
+    
+    required_keys = ['mode', 'question', 'confidence']
+    for key in required_keys:
+        if key not in obj:
+            return False, f"Missing key: {key}"
+    
+    if obj['mode'] not in ['mcq', 'fitb', 'journal']:
+        return False, "Invalid mode"
+    
+    if not isinstance(obj['question'], str):
+        return False, "Question is not a string"
+    
+    if not isinstance(obj['confidence'], (int, float)) or not (0.0 <= obj['confidence'] <= 1.0):
+        return False, "Confidence is not a valid number between 0.0 and 1.0"
+    
+    if obj['mode'] == 'mcq':
+        if 'choices' not in obj or not isinstance(obj['choices'], list) or not all(isinstance(c, str) for c in obj['choices']):
+            return False, "Choices is not a list of strings"
+        if 'answer_indices' not in obj or not isinstance(obj['answer_indices'], list) or not all(isinstance(i, int) and 0 <= i < len(obj['choices']) for i in obj['answer_indices']):
+            return False, "Invalid answer_indices"
+        # For backward compatibility, if answer_index exists, convert to list
+        if 'answer_index' in obj and isinstance(obj['answer_index'], int):
+            obj['answer_indices'] = [obj['answer_index']]
+    elif obj['mode'] == 'fitb':
+        if 'answer_text' not in obj or not isinstance(obj['answer_text'], str):
+            return False, "Answer_text is not a string"
+    elif obj['mode'] == 'journal':
+        if 'answer_entries' not in obj or not isinstance(obj['answer_entries'], list) or not all(isinstance(entry, str) for entry in obj['answer_entries']):
+            return False, "Answer_entries is not a list of strings"
+
+    return True, ""
