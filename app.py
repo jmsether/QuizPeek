@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QApplication, QMessageBox, QDialog, QLabel, QPushButton, QVBoxLayout
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 import sys
 import time
 import logging
@@ -119,6 +119,12 @@ def on_finished(window, result, inference_time):
                 answer_text = "Journal Entries:\n" + "\n".join(result['answer_entries'])
             else:
                 answer_text = "Answer: No journal entries found"
+        elif result['mode'] == 'tf':
+            if 'answer_index' in result:
+                answer = 'T' if result['answer_index'] == 0 else 'F'
+                answer_text = f"Answer: {answer}"
+            else:
+                answer_text = "Answer: Unknown"
         else:  # fitb
             answer_text = f"Answer: {result['answer_text']}"
         layout.addWidget(QLabel(answer_text))
