@@ -186,7 +186,13 @@ class MainWindow(QMainWindow):
                             text = f"{first_entry} {confidence:.2f}"
                     else:
                         text = f"No entries {confidence:.2f}"
-                else:  # fitb
+                elif result['mode'] == 'tf':
+                    if 'answer_index' in result:
+                        answer = 'T' if result['answer_index'] == 0 else 'F'
+                        text = f"{answer} {confidence:.2f}"
+                    else:
+                        text = f"Unknown {confidence:.2f}"
+                else:
                     text = f"{result['answer_text'][:20]} {confidence:.2f}"
                 color = "green" if confidence >= threshold else "amber"
                 screen = QApplication.primaryScreen()
@@ -212,7 +218,13 @@ class MainWindow(QMainWindow):
                         answer_text = "Journal Entries:\n" + "\n".join(result['answer_entries'])
                     else:
                         answer_text = "Answer: No journal entries found"
-                else:  # fitb
+                elif result['mode'] == 'tf':
+                    if 'answer_index' in result:
+                        answer = 'T' if result['answer_index'] == 0 else 'F'
+                        answer_text = f"Answer: {answer}"
+                    else:
+                        answer_text = "Answer: Unknown"
+                else:
                     answer_text = f"Answer: {result['answer_text']}"
                 layout.addWidget(QLabel(answer_text))
                 layout.addWidget(QLabel(f"Confidence: {confidence:.2f}"))

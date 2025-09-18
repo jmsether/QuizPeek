@@ -3,7 +3,7 @@ import json
 
 def call_openrouter(image_data_url: str, model: str, api_key: str, timeout_s: float = 2.0) -> dict | None:
     system_prompt = 'You are a quiz parser. Input is a cropped screenshot of a quiz. Return ONLY strict JSON. If multiple questions are visible, answer the TOPMOST one.'
-    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and 0-based "answer_indices" as a list (even for single answer). If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
+    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and 0-based "answer_indices" as a list (even for single answer). If it's true/false, return 'mode':'tf' and 'answer_index' as 0 for True or 1 for False. If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal|tf", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_index": 0, "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
     
     messages = [
         {"role": "system", "content": system_prompt},
@@ -78,7 +78,7 @@ def validate_result(obj: dict) -> tuple[bool, str]:
         if key not in obj:
             return False, f"Missing key: {key}"
     
-    if obj['mode'] not in ['mcq', 'fitb', 'journal']:
+    if obj['mode'] not in ['mcq', 'fitb', 'journal', 'tf']:
         return False, "Invalid mode"
     
     if not isinstance(obj['question'], str):
@@ -101,5 +101,15 @@ def validate_result(obj: dict) -> tuple[bool, str]:
     elif obj['mode'] == 'journal':
         if 'answer_entries' not in obj or not isinstance(obj['answer_entries'], list) or not all(isinstance(entry, str) for entry in obj['answer_entries']):
             return False, "Answer_entries is not a list of strings"
+    elif obj['mode'] == 'tf':
+        if 'answer_index' not in obj or not isinstance(obj['answer_index'], int) or obj['answer_index'] not in [0, 1]:
+            return False, "Invalid answer_index for tf"
+        if 'choices' in obj:
+            if not isinstance(obj['choices'], list) or len(obj['choices']) != 2 or not all(isinstance(c, str) for c in obj['choices']):
+                return False, "Choices must be exactly two strings for tf"
+            choices_lower = [c.lower() for c in obj['choices']]
+            if not (('true' in choices_lower and 'false' in choices_lower) or ('t' in choices_lower and 'f' in choices_lower)):
+                return False, "Choices must match True/False for tf"
+
 
     return True, ""
