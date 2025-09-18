@@ -3,10 +3,13 @@ from PySide6.QtWidgets import (
     QCheckBox, QLabel, QStatusBar, QHBoxLayout, QVBoxLayout, QWidget, QDialog, QApplication
 )
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QPixmap, QImage
+from PIL import Image
+from PIL.ImageQt import ImageQt
 from config import load_config, save_config
 from hotkey import HotkeyInput
 from overlay import show_pill
+from capture import detect_monitor_under_mouse, capture_monitor, crop_percent, downscale_max_width
 
 class MainWindow(QMainWindow):
     hotkeyStartRequested = Signal(str)
@@ -108,12 +111,21 @@ class MainWindow(QMainWindow):
         # Test Dialog Button
         self.test_button = QPushButton('Test Dialog')
         self.test_button.clicked.connect(self.show_test_dialog)
-        layout.addWidget(self.test_button)
 
         # Test Pill Button
         self.test_pill_button = QPushButton('Test Pill')
         self.test_pill_button.clicked.connect(self.show_test_pill)
-        layout.addWidget(self.test_pill_button)
+
+        # Horizontal layout for test buttons
+        test_buttons_layout = QHBoxLayout()
+        test_buttons_layout.addWidget(self.test_button)
+        test_buttons_layout.addWidget(self.test_pill_button)
+        layout.addLayout(test_buttons_layout)
+
+        # Test Screenshot Button
+        self.test_screenshot_button = QPushButton('Test Screenshot')
+        self.test_screenshot_button.clicked.connect(self.show_test_screenshot)
+        layout.addWidget(self.test_screenshot_button)
 
         # Start/Stop Button
         self.start_stop_button = QPushButton('Start')
@@ -157,6 +169,30 @@ class MainWindow(QMainWindow):
         screen = QApplication.primaryScreen()
         geometry = screen.geometry()
         show_pill(text, color, geometry)
+
+    def show_test_screenshot(self):
+        monitor = detect_monitor_under_mouse()
+        img = capture_monitor(monitor)
+        top_pct = self.config.get('top_crop_pct', 8)
+        bot_pct = self.config.get('bottom_crop_pct', 6)
+        img = crop_percent(img, top_pct, bot_pct)
+        max_w = self.config.get('max_width', 1024)
+        img = downscale_max_width(img, max_w)
+        # Convert to QPixmap
+        img_qt = ImageQt(img)
+        pixmap = QPixmap.fromImage(img_qt)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Test Screenshot")
+        layout = QVBoxLayout(dialog)
+        label = QLabel()
+        label.setPixmap(pixmap)
+        layout.addWidget(label)
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(dialog.close)
+        layout.addWidget(close_button)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def show_answer_dialog(self, result, inference_time):
         print("show_answer_dialog called")
