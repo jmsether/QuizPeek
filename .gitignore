@@ -137,7 +137,7 @@ Thumbs.db
 *.log
 
 # Screenshots (if any are saved locally)
-screenshots/
+# screenshots/
 
 # API keys and secrets
 secrets.json
