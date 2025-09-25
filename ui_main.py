@@ -8,7 +8,7 @@ from PIL import Image
 from PIL.ImageQt import ImageQt
 from config import load_config, save_config
 from hotkey import HotkeyInput
-from overlay import show_pill
+from overlay import show_notification
 from capture import detect_monitor_under_mouse, capture_monitor, crop_percent, downscale_max_width
 
 class MainWindow(QMainWindow):
@@ -99,14 +99,23 @@ class MainWindow(QMainWindow):
         bypass_layout.addWidget(self.bypass_checkbox)
         layout.addLayout(bypass_layout)
 
-        # Use Overlay Pill
-        pill_layout = QHBoxLayout()
-        pill_layout.addWidget(QLabel('Use Overlay Pill:'))
-        self.pill_checkbox = QCheckBox()
-        self.pill_checkbox.setChecked(self.config.get('use_overlay_pill', False))
-        self.pill_checkbox.stateChanged.connect(self.save_config)
-        pill_layout.addWidget(self.pill_checkbox)
-        layout.addLayout(pill_layout)
+        # Show Notifications
+        notifications_layout = QHBoxLayout()
+        notifications_layout.addWidget(QLabel('Show Notifications:'))
+        self.notifications_checkbox = QCheckBox()
+        self.notifications_checkbox.setChecked(self.config.get('show_notifications', False))
+        self.notifications_checkbox.stateChanged.connect(self.save_config)
+        notifications_layout.addWidget(self.notifications_checkbox)
+        layout.addLayout(notifications_layout)
+
+        # Show Raw Answer
+        show_raw_layout = QHBoxLayout()
+        show_raw_layout.addWidget(QLabel('Show Raw Answer:'))
+        self.show_raw_checkbox = QCheckBox()
+        self.show_raw_checkbox.setChecked(self.config.get('show_raw_answer', False))
+        self.show_raw_checkbox.stateChanged.connect(self.save_config)
+        show_raw_layout.addWidget(self.show_raw_checkbox)
+        layout.addLayout(show_raw_layout)
 
         # Test Dialog Button
         self.test_button = QPushButton('Test Dialog')
@@ -166,9 +175,7 @@ class MainWindow(QMainWindow):
     def show_test_pill(self):
         text = "Test Pill"
         color = "green"
-        screen = QApplication.primaryScreen()
-        geometry = screen.geometry()
-        show_pill(text, color, geometry)
+        show_notification(text, color)
 
     def show_test_screenshot(self):
         monitor = detect_monitor_under_mouse()
@@ -199,80 +206,51 @@ class MainWindow(QMainWindow):
         confidence = result['confidence']
         threshold = self.config['confidence_threshold']
         bypass = self.config.get('bypass_confidence', False)
-        use_pill = self.config.get('use_overlay_pill', False)
-        print(f"Confidence: {confidence}, Threshold: {threshold}, Bypass: {bypass}, Use Pill: {use_pill}")
+        show_notifications = self.config.get('show_notifications', False)
+        print(f"Confidence: {confidence}, Threshold: {threshold}, Bypass: {bypass}, Show Notifications: {show_notifications}")
         if bypass or confidence >= threshold:
-            if use_pill:
-                print("Showing pill")
-                if result['mode'] == 'mcq':
-                    if 'answer_indices' in result and result['answer_indices']:
-                        answers = ', '.join(chr(65 + i) for i in sorted(result['answer_indices']))
-                        text = f"{answers} {confidence:.2f}"
-                    elif 'answer_index' in result:
-                        text = f"{chr(65 + result['answer_index'])} {confidence:.2f}"
-                    else:
-                        text = f"Unknown {confidence:.2f}"
-                elif result['mode'] == 'journal':
-                    if 'answer_entries' in result and result['answer_entries']:
-                        first_entry = result['answer_entries'][0][:15]
-                        remaining_count = len(result['answer_entries']) - 1
-                        if remaining_count > 0:
-                            text = f"{first_entry}(+{remaining_count}) {confidence:.2f}"
-                        else:
-                            text = f"{first_entry} {confidence:.2f}"
-                    else:
-                        text = f"No entries {confidence:.2f}"
-                elif result['mode'] == 'tf':
-                    if 'answer_index' in result:
-                        answer = 'T' if result['answer_index'] == 0 else 'F'
-                        text = f"{answer} {confidence:.2f}"
-                    else:
-                        text = f"Unknown {confidence:.2f}"
+            if result['mode'] == 'mcq':
+                if 'answer_indices' in result and result['answer_indices']:
+                    answers = ', '.join(chr(65 + i) for i in sorted(result['answer_indices']))
+                    text = f"{answers} {confidence:.2f}"
+                elif 'answer_index' in result:
+                    text = f"{chr(65 + result['answer_index'])} {confidence:.2f}"
                 else:
-                    text = f"{result['answer_text'][:20]} {confidence:.2f}"
-                color = "green" if confidence >= threshold else "amber"
-                screen = QApplication.primaryScreen()
-                geometry = screen.geometry()
-                show_pill(text, color, geometry)
+                    text = f"Unknown {confidence:.2f}"
+            elif result['mode'] == 'journal':
+                if 'answer_entries' in result and result['answer_entries']:
+                    first_entry = result['answer_entries'][0][:15]
+                    remaining_count = len(result['answer_entries']) - 1
+                    if remaining_count > 0:
+                        text = f"{first_entry}(+{remaining_count}) {confidence:.2f}"
+                    else:
+                        text = f"{first_entry} {confidence:.2f}"
+                else:
+                    text = f"No entries {confidence:.2f}"
+            elif result['mode'] == 'tf':
+                if 'answer_index' in result:
+                    answer = 'T' if result['answer_index'] == 0 else 'F'
+                    text = f"{answer} {confidence:.2f}"
+                else:
+                    text = f"Unknown {confidence:.2f}"
             else:
-                print("Showing answer dialog")
+                text = f"{result.get('answer_text', result['raw_answer_text'][:20])} {confidence:.2f}"
+            color = "green" if confidence >= threshold else "amber"
+            if show_notifications:
+                print("Showing notification")
+                show_notification(text, color)
+            else:
+                print("Showing dialog")
                 dialog = QDialog(self)
-                dialog.setWindowTitle("Quiz Answer")
-                dialog.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window)
-                dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+                dialog.setWindowTitle("Answer")
                 layout = QVBoxLayout(dialog)
-                if result['mode'] == 'mcq':
-                    if 'answer_indices' in result and result['answer_indices']:
-                        answers = ', '.join(chr(65 + i) for i in sorted(result['answer_indices']))
-                        answer_text = f"Answer: {answers}"
-                    elif 'answer_index' in result:
-                        answer_text = f"Answer: {chr(65 + result['answer_index'])}"
-                    else:
-                        answer_text = "Answer: Unknown"
-                elif result['mode'] == 'journal':
-                    if 'answer_entries' in result and result['answer_entries']:
-                        answer_text = "Journal Entries:\n" + "\n".join(result['answer_entries'])
-                    else:
-                        answer_text = "Answer: No journal entries found"
-                elif result['mode'] == 'tf':
-                    if 'answer_index' in result:
-                        answer = 'T' if result['answer_index'] == 0 else 'F'
-                        answer_text = f"Answer: {answer}"
-                    else:
-                        answer_text = "Answer: Unknown"
-                else:
-                    answer_text = f"Answer: {result['answer_text']}"
-                layout.addWidget(QLabel(answer_text))
-                layout.addWidget(QLabel(f"Confidence: {confidence:.2f}"))
-                layout.addWidget(QLabel(f"Inference time: {inference_time:.0f} ms"))
+                layout.addWidget(QLabel(text))
                 close_button = QPushButton("Close")
                 close_button.clicked.connect(dialog.close)
                 layout.addWidget(close_button)
                 dialog.show()
                 dialog.raise_()
                 dialog.activateWindow()
-                QApplication.processEvents()
-                print("Answer dialog shown")
         else:
             print("Not showing answer")
         self.status_bar.showMessage(f'Inference: {inference_time:.0f} ms, Confidence: {confidence:.2f}')
@@ -285,7 +263,8 @@ class MainWindow(QMainWindow):
         self.config['max_width'] = self.max_width_spin.value()
         self.config['save_key'] = self.save_key_checkbox.isChecked()
         self.config['bypass_confidence'] = self.bypass_checkbox.isChecked()
-        self.config['use_overlay_pill'] = self.pill_checkbox.isChecked()
+        self.config['show_notifications'] = self.notifications_checkbox.isChecked()
+        self.config['show_raw_answer'] = self.show_raw_checkbox.isChecked()
         if self.save_key_checkbox.isChecked():
             self.config['api_key'] = self.api_key_edit.text()
         else:

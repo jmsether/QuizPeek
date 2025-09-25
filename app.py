@@ -8,7 +8,7 @@ from config import load_config
 from hotkey import register, unregister
 from capture import detect_monitor_under_mouse, capture_monitor, crop_percent, downscale_max_width, encode_png_base64
 from router import call_openrouter, validate_result
-from overlay import show_pill
+from overlay import show_notification
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 print("Logging configured")
@@ -126,7 +126,7 @@ def on_finished(window, result, inference_time):
             else:
                 answer_text = "Answer: Unknown"
         else:  # fitb
-            answer_text = f"Answer: {result['answer_text']}"
+            answer_text = f"Answer: {result.get('answer_text', result['raw_answer_text'])}"
         layout.addWidget(QLabel(answer_text))
         layout.addWidget(QLabel(f"Confidence: {confidence:.2f}"))
         layout.addWidget(QLabel(f"Inference time: {inference_time:.0f} ms"))
@@ -159,7 +159,7 @@ def on_error(window, msg):
         text = "Error"
     screen = QApplication.primaryScreen()
     geometry = screen.geometry()
-    show_pill(text, color, geometry)
+    show_notification(text, color)
     window.status_bar.showMessage('Error')
 
 if __name__ == '__main__':

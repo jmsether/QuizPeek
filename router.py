@@ -3,7 +3,7 @@ import json
 
 def call_openrouter(image_data_url: str, model: str, api_key: str, timeout_s: float = 2.0) -> dict | None:
     system_prompt = 'You are a quiz parser. Input is a cropped screenshot of a quiz. Return ONLY strict JSON. If multiple questions are visible, answer the TOPMOST one.'
-    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and 0-based "answer_indices" as a list (even for single answer). If it's true/false, return 'mode':'tf' and 'answer_index' as 0 for True or 1 for False. If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal|tf", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_index": 0, "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
+    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and "answer_indices" as a list of 0-based indices (even for single answer). Do not use "answer_index" for multiple-choice questions. If it's true/false, return 'mode':'tf' and 'answer_index' as 0 for True or 1 for False. If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal|tf", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_index": 0, "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
     
     messages = [
         {"role": "system", "content": system_prompt},
@@ -58,6 +58,7 @@ def call_openrouter(image_data_url: str, model: str, api_key: str, timeout_s: fl
         print(f"Cleaned content: '{content}'")
         try:
             parsed = json.loads(content)
+            parsed['raw_answer_text'] = content
             return parsed
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
