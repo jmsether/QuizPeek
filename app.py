@@ -103,8 +103,8 @@ def on_finished(window, result, inference_time):
         print("Showing dialog")
         # Show answer dialog
         dialog = QDialog(window)
+        dialog.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         dialog.setWindowTitle("Quiz Answer")
-        dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
         layout = QVBoxLayout(dialog)
         if result['mode'] == 'mcq':
             if 'answer_indices' in result and result['answer_indices']:
@@ -135,7 +135,6 @@ def on_finished(window, result, inference_time):
         layout.addWidget(close_button)
         dialog.show()
         dialog.raise_()
-        dialog.activateWindow()
         QApplication.processEvents()
         print("Dialog shown")
     else:
@@ -166,6 +165,7 @@ if __name__ == '__main__':
     logging.info("Starting QuizPeek application")
     try:
         app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False)
         logging.info("QApplication created successfully")
     except Exception as e:
         logging.error(f"Failed to create QApplication: {e}")
@@ -173,5 +173,5 @@ if __name__ == '__main__':
     window = MainWindow()
     window.hotkeyStartRequested.connect(lambda combo: register(combo, lambda: hotkey_callback(window)))
     window.hotkeyStopRequested.connect(lambda: unregister(window.hotkey_input.text()))
-    window.show()
+    window.hide()
     sys.exit(app.exec())

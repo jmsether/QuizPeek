@@ -1,9 +1,10 @@
 from PySide6.QtWidgets import (
     QMainWindow, QPushButton, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox,
-    QCheckBox, QLabel, QStatusBar, QHBoxLayout, QVBoxLayout, QWidget, QDialog, QApplication
+    QCheckBox, QLabel, QStatusBar, QHBoxLayout, QVBoxLayout, QWidget, QDialog, QApplication,
+    QSystemTrayIcon, QMenu
 )
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QCloseEvent, QPixmap, QImage, QGuiApplication
+from PySide6.QtCore import Signal, Qt, QEvent
+from PySide6.QtGui import QAction, QCloseEvent, QPixmap, QImage, QGuiApplication, QIcon
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from config import load_config, save_config
@@ -189,6 +190,19 @@ class MainWindow(QMainWindow):
         self.confidence_label = QLabel('Confidence: 0.00')
         self.status_bar.addWidget(self.confidence_label)
 
+        # System Tray Icon
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon('icon.png'))
+        tray_menu = QMenu()
+        restore_action = QAction("Restore", self)
+        restore_action.triggered.connect(self.showNormal)
+        tray_menu.addAction(restore_action)
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(QApplication.quit)
+        tray_menu.addAction(quit_action)
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.show()
+
         # Connect answer ready signal
         self.answerReady.connect(self.show_answer_dialog)
         self.closeDialogRequested.connect(self.close_active_dialog)
@@ -300,8 +314,7 @@ class MainWindow(QMainWindow):
                 print("Showing dialog")
                 dialog = QDialog()
                 dialog.setWindowTitle("Answer")
-                dialog.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window)
-                dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+                dialog.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
                 dialog.setWindowOpacity(self.config.get('popup_opacity', 0.9))
                 layout = QVBoxLayout(dialog)
                 layout.addWidget(QLabel(text))
@@ -321,7 +334,6 @@ class MainWindow(QMainWindow):
                 dialog.setGeometry(x, y, dialog.width(), dialog.height())
                 dialog.show()
                 dialog.raise_()
-                dialog.activateWindow()
         else:
             print("Not showing answer")
         self.status_bar.showMessage(f'Inference: {inference_time:.0f} ms, Confidence: {confidence:.2f}')
@@ -362,3 +374,9 @@ class MainWindow(QMainWindow):
             self.current_worker.wait()
         save_config(self.config)
         super().closeEvent(event)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.WindowStateChange:
+            if self.isMinimized():
+                self.hide()
+        super().changeEvent(event)
