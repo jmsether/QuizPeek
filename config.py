@@ -10,6 +10,8 @@ DEFAULTS = {
     "save_key": False,
     "model": "meta-llama/llama-3.2-90b-vision-instruct",
     "hotkey": "ctrl",
+    "close_hotkey": "alt",
+    "popup_opacity": 0.9,
     "top_crop_pct": 8,
     "bottom_crop_pct": 6,
     "max_width": 1024,

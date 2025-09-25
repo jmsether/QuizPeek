@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QPushButton, QLineEdit, QComboBox, QSpinBox,
+    QMainWindow, QPushButton, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox,
     QCheckBox, QLabel, QStatusBar, QHBoxLayout, QVBoxLayout, QWidget, QDialog, QApplication
 )
 from PySide6.QtCore import Signal, Qt
@@ -7,7 +7,7 @@ from PySide6.QtGui import QCloseEvent, QPixmap, QImage
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from config import load_config, save_config
-from hotkey import HotkeyInput
+from hotkey import HotkeyInput, register, unregister
 from overlay import show_notification
 from capture import detect_monitor_under_mouse, capture_monitor, crop_percent, downscale_max_width
 
@@ -15,11 +15,13 @@ class MainWindow(QMainWindow):
     hotkeyStartRequested = Signal(str)
     hotkeyStopRequested = Signal()
     answerReady = Signal(dict, float)
+    closeDialogRequested = Signal()
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle('QuizPeek')
         self.config = load_config()
+        self.active_dialog = None
 
         # Central widget
         central_widget = QWidget()
@@ -59,6 +61,26 @@ class MainWindow(QMainWindow):
         self.hotkey_input.comboChanged.connect(self.save_config)
         hotkey_layout.addWidget(self.hotkey_input)
         layout.addLayout(hotkey_layout)
+
+        # Close Hotkey
+        close_hotkey_layout = QHBoxLayout()
+        close_hotkey_layout.addWidget(QLabel('Close Hotkey:'))
+        self.close_hotkey_input = HotkeyInput()
+        self.close_hotkey_input.setText(self.config.get('close_hotkey', 'alt'))
+        self.close_hotkey_input.comboChanged.connect(self.save_config)
+        close_hotkey_layout.addWidget(self.close_hotkey_input)
+        layout.addLayout(close_hotkey_layout)
+
+        # Popup Opacity
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(QLabel('Popup Opacity:'))
+        self.opacity_spin = QDoubleSpinBox()
+        self.opacity_spin.setRange(0.1, 1.0)
+        self.opacity_spin.setSingleStep(0.1)
+        self.opacity_spin.setValue(self.config.get('popup_opacity', 0.9))
+        self.opacity_spin.valueChanged.connect(self.save_config)
+        opacity_layout.addWidget(self.opacity_spin)
+        layout.addLayout(opacity_layout)
 
         # Top Crop %
         top_crop_layout = QHBoxLayout()
@@ -159,15 +181,26 @@ class MainWindow(QMainWindow):
 
         # Connect answer ready signal
         self.answerReady.connect(self.show_answer_dialog)
+        self.closeDialogRequested.connect(self.close_active_dialog)
 
     def toggle_hotkey(self):
         if self.start_stop_button.text() == 'Start':
             combo = self.hotkey_input.text()
             self.hotkeyStartRequested.emit(combo)
+            # Register close hotkey
+            close_combo = self.close_hotkey_input.text()
+            register(close_combo, lambda: self.closeDialogRequested.emit())
             self.start_stop_button.setText('Stop')
         else:
             self.hotkeyStopRequested.emit()
+            # Unregister close hotkey
+            close_combo = self.close_hotkey_input.text()
+            unregister(close_combo)
             self.start_stop_button.setText('Start')
+
+    def close_active_dialog(self):
+        if self.active_dialog:
+            self.active_dialog.close()
 
     def show_test_dialog(self):
         dialog = QDialog(self)
@@ -259,11 +292,14 @@ class MainWindow(QMainWindow):
                 dialog.setWindowTitle("Answer")
                 dialog.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window)
                 dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+                dialog.setWindowOpacity(self.config.get('popup_opacity', 0.9))
                 layout = QVBoxLayout(dialog)
                 layout.addWidget(QLabel(text))
                 close_button = QPushButton("Close")
                 close_button.clicked.connect(dialog.close)
                 layout.addWidget(close_button)
+                self.active_dialog = dialog
+                dialog.finished.connect(lambda: setattr(self, 'active_dialog', None))
                 dialog.show()
                 dialog.raise_()
                 dialog.activateWindow()
@@ -274,6 +310,8 @@ class MainWindow(QMainWindow):
     def save_config(self):
         self.config['model'] = self.model_combo.currentText()
         self.config['hotkey'] = self.hotkey_input.text()
+        self.config['close_hotkey'] = self.close_hotkey_input.text()
+        self.config['popup_opacity'] = self.opacity_spin.value()
         self.config['top_crop_pct'] = self.top_crop_spin.value()
         self.config['bottom_crop_pct'] = self.bottom_crop_spin.value()
         self.config['max_width'] = self.max_width_spin.value()
