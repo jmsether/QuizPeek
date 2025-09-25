@@ -257,6 +257,8 @@ class MainWindow(QMainWindow):
                 print("Showing dialog")
                 dialog = QDialog(self)
                 dialog.setWindowTitle("Answer")
+                dialog.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window)
+                dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
                 layout = QVBoxLayout(dialog)
                 layout.addWidget(QLabel(text))
                 close_button = QPushButton("Close")
