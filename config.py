@@ -18,7 +18,8 @@ DEFAULTS = {
     "confidence_threshold": 0.70,
     "bypass_confidence": False,
     "show_notifications": False,
-    "show_confidence_rating": False
+    "show_confidence_rating": False,
+    "pop_dialog_side": "left"
 }
 
 def get_config_dir():

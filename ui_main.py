@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QLabel, QStatusBar, QHBoxLayout, QVBoxLayout, QWidget, QDialog, QApplication
 )
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QCloseEvent, QPixmap, QImage
+from PySide6.QtGui import QCloseEvent, QPixmap, QImage, QGuiApplication
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from config import load_config, save_config
@@ -21,6 +21,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle('QuizPeek')
         self.config = load_config()
+        self.pop_dialog_side = self.config.get("pop_dialog_side", "left")
         self.active_dialog = None
 
         # Central widget
@@ -147,6 +148,15 @@ class MainWindow(QMainWindow):
         self.show_confidence_checkbox.stateChanged.connect(self.save_config)
         show_confidence_layout.addWidget(self.show_confidence_checkbox)
         layout.addLayout(show_confidence_layout)
+
+        # Pop Dialog Side
+        pop_dialog_layout = QHBoxLayout()
+        pop_dialog_layout.addWidget(QLabel('Pop dialog on right side:'))
+        self.pop_dialog_checkbox = QCheckBox()
+        self.pop_dialog_checkbox.setChecked(self.pop_dialog_side == "right")
+        self.pop_dialog_checkbox.stateChanged.connect(self.update_pop_dialog_side)
+        pop_dialog_layout.addWidget(self.pop_dialog_checkbox)
+        layout.addLayout(pop_dialog_layout)
 
         # Test Dialog Button
         self.test_button = QPushButton('Test Dialog')
@@ -288,7 +298,7 @@ class MainWindow(QMainWindow):
                 show_notification(text, color)
             else:
                 print("Showing dialog")
-                dialog = QDialog(self)
+                dialog = QDialog()
                 dialog.setWindowTitle("Answer")
                 dialog.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window)
                 dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
@@ -300,6 +310,15 @@ class MainWindow(QMainWindow):
                 layout.addWidget(close_button)
                 self.active_dialog = dialog
                 dialog.finished.connect(lambda: setattr(self, 'active_dialog', None))
+                dialog.adjustSize()
+                screen = QGuiApplication.primaryScreen()
+                screen_geom = screen.availableGeometry()
+                if self.pop_dialog_side == "left":
+                    x = 0
+                else:
+                    x = screen_geom.width() - dialog.width()
+                y = (screen_geom.height() - dialog.height()) // 2
+                dialog.setGeometry(x, y, dialog.width(), dialog.height())
                 dialog.show()
                 dialog.raise_()
                 dialog.activateWindow()
@@ -324,6 +343,11 @@ class MainWindow(QMainWindow):
             self.config['api_key'] = self.api_key_edit.text()
         else:
             self.config['api_key'] = ''
+        save_config(self.config)
+
+    def update_pop_dialog_side(self):
+        self.pop_dialog_side = "right" if self.pop_dialog_checkbox.isChecked() else "left"
+        self.config["pop_dialog_side"] = self.pop_dialog_side
         save_config(self.config)
 
     def update_inference_time(self, ms):
