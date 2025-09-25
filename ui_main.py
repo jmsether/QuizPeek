@@ -117,6 +117,15 @@ class MainWindow(QMainWindow):
         show_raw_layout.addWidget(self.show_raw_checkbox)
         layout.addLayout(show_raw_layout)
 
+        # Show Confidence Rating
+        show_confidence_layout = QHBoxLayout()
+        show_confidence_layout.addWidget(QLabel('Show Confidence Rating:'))
+        self.show_confidence_checkbox = QCheckBox()
+        self.show_confidence_checkbox.setChecked(self.config.get('show_confidence_rating', False))
+        self.show_confidence_checkbox.stateChanged.connect(self.save_config)
+        show_confidence_layout.addWidget(self.show_confidence_checkbox)
+        layout.addLayout(show_confidence_layout)
+
         # Test Dialog Button
         self.test_button = QPushButton('Test Dialog')
         self.test_button.clicked.connect(self.show_test_dialog)
@@ -207,34 +216,39 @@ class MainWindow(QMainWindow):
         threshold = self.config['confidence_threshold']
         bypass = self.config.get('bypass_confidence', False)
         show_notifications = self.config.get('show_notifications', False)
+        show_confidence = self.config.get('show_confidence_rating', False)
         print(f"Confidence: {confidence}, Threshold: {threshold}, Bypass: {bypass}, Show Notifications: {show_notifications}")
         if bypass or confidence >= threshold:
             if result['mode'] == 'mcq':
                 if 'answer_indices' in result and result['answer_indices']:
                     answers = ', '.join(chr(65 + i) for i in sorted(result['answer_indices']))
-                    text = f"{answers} {confidence:.2f}"
+                    base_text = answers
                 elif 'answer_index' in result:
-                    text = f"{chr(65 + result['answer_index'])} {confidence:.2f}"
+                    base_text = chr(65 + result['answer_index'])
                 else:
-                    text = f"Unknown {confidence:.2f}"
+                    base_text = "Unknown"
             elif result['mode'] == 'journal':
                 if 'answer_entries' in result and result['answer_entries']:
                     first_entry = result['answer_entries'][0][:15]
                     remaining_count = len(result['answer_entries']) - 1
                     if remaining_count > 0:
-                        text = f"{first_entry}(+{remaining_count}) {confidence:.2f}"
+                        base_text = f"{first_entry}(+{remaining_count})"
                     else:
-                        text = f"{first_entry} {confidence:.2f}"
+                        base_text = first_entry
                 else:
-                    text = f"No entries {confidence:.2f}"
+                    base_text = "No entries"
             elif result['mode'] == 'tf':
                 if 'answer_index' in result:
                     answer = 'T' if result['answer_index'] == 0 else 'F'
-                    text = f"{answer} {confidence:.2f}"
+                    base_text = answer
                 else:
-                    text = f"Unknown {confidence:.2f}"
+                    base_text = "Unknown"
             else:
-                text = f"{result.get('answer_text', result['raw_answer_text'][:20])} {confidence:.2f}"
+                base_text = result.get('answer_text', result['raw_answer_text'][:20])
+            if show_confidence:
+                text = f"{base_text}\n{confidence:.2f}"
+            else:
+                text = base_text
             color = "green" if confidence >= threshold else "amber"
             if show_notifications:
                 print("Showing notification")
@@ -265,6 +279,7 @@ class MainWindow(QMainWindow):
         self.config['bypass_confidence'] = self.bypass_checkbox.isChecked()
         self.config['show_notifications'] = self.notifications_checkbox.isChecked()
         self.config['show_raw_answer'] = self.show_raw_checkbox.isChecked()
+        self.config['show_confidence_rating'] = self.show_confidence_checkbox.isChecked()
         if self.save_key_checkbox.isChecked():
             self.config['api_key'] = self.api_key_edit.text()
         else:

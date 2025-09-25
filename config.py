@@ -15,7 +15,8 @@ DEFAULTS = {
     "max_width": 1024,
     "confidence_threshold": 0.70,
     "bypass_confidence": False,
-    "show_notifications": False
+    "show_notifications": False,
+    "show_confidence_rating": False
 }
 
 def get_config_dir():
