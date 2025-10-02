@@ -15,7 +15,7 @@ QuizPeek is a desktop application that uses AI to help users answer quiz questio
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/quizpeek.git
+   git clone https://github.com/jmsether/quizpeek.git
    cd quizpeek
    ```
 

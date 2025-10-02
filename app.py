@@ -78,23 +78,33 @@ class Worker(QThread):
             self.error.emit('error')
 
 def hotkey_callback(window):
+    print("Hotkey callback entered")
     print("Hotkey triggered, starting worker thread")
     logging.info("Hotkey triggered, starting worker thread")
     if hasattr(window, 'current_worker') and window.current_worker and window.current_worker.isRunning():
-        print("Previous worker still running")
-        logging.warning("Previous worker still running, starting new worker anyway")
-    worker = Worker(window.config)
-    window.current_worker = worker
-    worker.finished.connect(window.answerReady)
-    worker.error.connect(lambda msg: on_error(window, msg))
-    worker.start()
-    print("Worker thread started")
-    logging.debug("Worker thread started")
+        print("Previous worker still running, skipping new worker")
+        logging.warning("Previous worker still running, skipping new worker")
+        print("Hotkey callback exited early")
+        return
+    try:
+        worker = Worker(window.config)
+        window.current_worker = worker
+        worker.finished.connect(window.answerReady)
+        worker.error.connect(lambda msg: on_error(window, msg))
+        worker.start()
+        print("Worker thread started")
+        logging.debug("Worker thread started")
+    except Exception as e:
+        print(f"Exception in hotkey_callback: {e}")
+        logging.error(f"Exception in hotkey_callback: {e}")
+        window.current_worker = None
+    print("Hotkey callback exited")
 
 def on_finished(window, result, inference_time):
     logging.info("Worker finished successfully")
     print("on_finished called")
     window.current_worker = None
+    logging.info("Worker completed, app continues running")
     confidence = result['confidence']
     threshold = window.config['confidence_threshold']
     bypass = window.config.get('bypass_confidence', False)
@@ -144,6 +154,7 @@ def on_finished(window, result, inference_time):
 def on_error(window, msg):
     logging.error(f"Worker error: {msg}")
     window.current_worker = None
+    logging.info("Error handled, app continues running")
     if msg == 'auth':
         QMessageBox.warning(window, 'Invalid API Key', 'Invalid OpenRouter API key')
         return

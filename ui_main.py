@@ -312,12 +312,20 @@ class MainWindow(QMainWindow):
                 show_notification(text, color)
             else:
                 print("Showing dialog")
+                if result['mode'] == 'journal' and 'answer_entries' in result and result['answer_entries']:
+                    full_base = "\n".join(result['answer_entries'])
+                    if show_confidence:
+                        text = f"{full_base}\n{confidence:.2f}"
+                    else:
+                        text = full_base
                 dialog = QDialog()
                 dialog.setWindowTitle("Answer")
                 dialog.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
                 dialog.setWindowOpacity(self.config.get('popup_opacity', 0.9))
                 layout = QVBoxLayout(dialog)
-                layout.addWidget(QLabel(text))
+                label = QLabel(text)
+                label.setWordWrap(True)
+                layout.addWidget(label)
                 close_button = QPushButton("Close")
                 close_button.clicked.connect(dialog.close)
                 layout.addWidget(close_button)
