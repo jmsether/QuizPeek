@@ -7,6 +7,7 @@ from PySide6.QtCore import Signal, Qt, QEvent
 from PySide6.QtGui import QAction, QCloseEvent, QPixmap, QImage, QGuiApplication, QIcon
 from PIL import Image
 from PIL.ImageQt import ImageQt
+import re
 from config import load_config, save_config
 from hotkey import HotkeyInput, register, unregister
 from overlay import show_notification
@@ -51,9 +52,21 @@ class MainWindow(QMainWindow):
         self.model_combo.setEditable(True)
         self.model_combo.addItem('meta-llama/llama-3.2-90b-vision-instruct')
         self.model_combo.setCurrentText(self.config.get('model', 'meta-llama/llama-3.2-90b-vision-instruct'))
-        self.model_combo.currentTextChanged.connect(self.save_config)
+
+        # Reasoning Checkbox
+        reasoning_layout = QHBoxLayout()
+        reasoning_layout.addWidget(QLabel('Enable Reasoning:'))
+        self.reasoning_checkbox = QCheckBox()
+        self.reasoning_checkbox.setChecked(self.config.get('enable_reasoning', False))
+        self.reasoning_checkbox.stateChanged.connect(self.on_reasoning_changed)
+        reasoning_layout.addWidget(self.reasoning_checkbox)
+        layout.addLayout(reasoning_layout)
+
+        self.model_combo.currentTextChanged.connect(self.on_model_changed)
+        self.update_reasoning_support(self.model_combo.currentText())
         model_layout.addWidget(self.model_combo)
         layout.addLayout(model_layout)
+
 
         # Hotkey
         hotkey_layout = QHBoxLayout()
@@ -359,6 +372,7 @@ class MainWindow(QMainWindow):
         self.config['show_notifications'] = self.notifications_checkbox.isChecked()
         self.config['show_raw_answer'] = self.show_raw_checkbox.isChecked()
         self.config['show_confidence_rating'] = self.show_confidence_checkbox.isChecked()
+        self.config['enable_reasoning'] = self.reasoning_checkbox.isChecked()
         if self.save_key_checkbox.isChecked():
             self.config['api_key'] = self.api_key_edit.text()
         else:
@@ -368,6 +382,27 @@ class MainWindow(QMainWindow):
     def update_pop_dialog_side(self):
         self.pop_dialog_side = "right" if self.pop_dialog_checkbox.isChecked() else "left"
         self.config["pop_dialog_side"] = self.pop_dialog_side
+        save_config(self.config)
+
+    def is_model_supported(self, model_name: str) -> bool:
+        # Exclude vision-only models
+        return not re.search(r'vision-only', model_name, re.IGNORECASE)
+
+    def update_reasoning_support(self, model_name: str):
+        supported = self.is_model_supported(model_name)
+        self.reasoning_checkbox.setEnabled(supported)
+        if not supported:
+            self.reasoning_checkbox.setChecked(False)
+            self.config['enable_reasoning'] = False
+            save_config(self.config)
+
+    def on_model_changed(self, model_name: str):
+        self.config['model'] = model_name
+        self.update_reasoning_support(model_name)
+        save_config(self.config)
+
+    def on_reasoning_changed(self, state):
+        self.config['enable_reasoning'] = bool(state)
         save_config(self.config)
 
     def update_inference_time(self, ms):

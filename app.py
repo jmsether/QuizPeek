@@ -37,7 +37,7 @@ class Worker(QThread):
             print("Encoding image")
             data_url = encode_png_base64(img)
             print("Calling OpenRouter API")
-            result = call_openrouter(data_url, self.config['model'], self.config['api_key'], 2.0)
+            result = call_openrouter(data_url, self.config['model'], self.config['api_key'], self.config.get('enable_reasoning', False), 2.0)
             print("API call completed")
             if result is None or (isinstance(result, dict) and 'error' in result):
                 if isinstance(result, dict):

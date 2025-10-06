@@ -19,7 +19,8 @@ DEFAULTS = {
     "bypass_confidence": False,
     "show_notifications": False,
     "show_confidence_rating": False,
-    "pop_dialog_side": "left"
+    "pop_dialog_side": "left",
+    "enable_reasoning": False
 }
 
 def get_config_dir():
