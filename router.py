@@ -29,7 +29,7 @@ def call_openrouter(image_data_url: str, model: str, api_key: str, enable_reason
         'model': model,
         'messages': messages,
         'temperature': 0.0,
-        'max_tokens': 300
+        'max_tokens': 15000
     }
     
     try:
