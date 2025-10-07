@@ -9,7 +9,7 @@ def call_openrouter(image_data_url: str, model: str, api_key: str, enable_reason
         system_prompt += " Use chain-of-thought: think step by step before outputting JSON."
     if enable_reasoning and not is_model_supported(model):
         logging.info(f"Reasoning requested but ignored for unsupported model: {model}")
-    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and "answer_indices" as a list of 0-based indices (even for single answer). Do not use "answer_index" for multiple-choice questions. If it's true/false, return 'mode':'tf' and 'answer_index' as 0 for True or 1 for False. If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal|tf", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_index": 0, "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Output ONLY JSON.'''
+    user_text = '''Extract the question and answers and decide the correct answer(s). If it's multiple-choice, return "mode":"mcq" and "answer_indices" as a list of 0-based indices (even for single answer). Do not use "answer_index" for multiple-choice questions. If it's true/false, return 'mode':'tf' and 'answer_index' as 0 for True or 1 for False. If it's fill-in, return "mode":"fitb" and "answer_text". If it's an accounting journal entry question (scenario at top, outline in middle, journal entry at bottom), return "mode":"journal" and "answer_entries" as an array of strings in format "Account D/C Amount". Focus ONLY on the journal entry part at the bottom. If negation words like NOT/EXCEPT/LEAST appear, still pick the correct answer(s). JSON schema: {"mode": "mcq|fitb|journal|tf", "question": "string", "choices": ["string"], "answer_indices": [0], "answer_index": 0, "answer_text": "string", "answer_entries": ["string"], "confidence": 0.0}. Always include a 'confidence' field as a float from 0.0 to 1.0 estimating your confidence in the answer based on your reasoning. Output ONLY JSON.'''
     
     messages = [
         {"role": "system", "content": system_prompt},
@@ -80,10 +80,18 @@ def validate_result(obj: dict) -> tuple[bool, str]:
     if not isinstance(obj, dict):
         return False, "Object is not a dict"
     
-    required_keys = ['mode', 'question', 'confidence']
+    required_keys = ['mode', 'question']
     for key in required_keys:
         if key not in obj:
+            logging.warning(f"Missing or invalid key: {key} in response")
             return False, f"Missing key: {key}"
+    
+    if 'confidence' not in obj:
+        logging.warning("Confidence field missing in response; defaulting to 1.0")
+        obj['confidence'] = 1.0
+    if not isinstance(obj['confidence'], (int, float)) or not (0.0 <= obj['confidence'] <= 1.0):
+        logging.warning(f"Missing or invalid key: confidence in response")
+        obj['confidence'] = 1.0
     
     if obj['mode'] not in ['mcq', 'fitb', 'journal', 'tf']:
         return False, "Invalid mode"
@@ -91,8 +99,6 @@ def validate_result(obj: dict) -> tuple[bool, str]:
     if not isinstance(obj['question'], str):
         return False, "Question is not a string"
     
-    if not isinstance(obj['confidence'], (int, float)) or not (0.0 <= obj['confidence'] <= 1.0):
-        return False, "Confidence is not a valid number between 0.0 and 1.0"
     
     if obj['mode'] == 'mcq':
         if 'choices' not in obj or not isinstance(obj['choices'], list) or not all(isinstance(c, str) for c in obj['choices']):
