@@ -56,6 +56,11 @@ class Worker(QThread):
                         logging.error("Parse error in API response")
                         self.error.emit('parse_error')
                         return
+                    elif result['error'] == 'blocked':
+                        print("Provider blocked or truncated output")
+                        logging.error("Provider blocked or truncated model output")
+                        self.error.emit('blocked')
+                        return
                 else:
                     print("No response")
                     logging.error("No response from API")
@@ -164,6 +169,9 @@ def on_error(window, msg):
     elif msg == 'parse_error':
         color = "red"
         text = "Parse error"
+    elif msg == 'blocked':
+        color = "amber"
+        text = "Provider blocked output"
     else:
         color = "red"
         text = "Error"
